@@ -2,9 +2,6 @@ package parser
 
 import (
 	"bufio"
-	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -16,26 +13,9 @@ type event struct {
 	fields  map[string]string
 }
 
-func Trim(iPath string) string {
-	iFile, err := os.Open(iPath)
-	if err != nil {
-		log.Fatal("failed to open " + iPath)
-	}
-	defer iFile.Close()
-
-	ext := filepath.Ext(iPath)
-	oPath := strings.TrimSuffix(iPath, ext) + "_output" + ext
-	oFile, err := os.Create(oPath)
-	if err != nil {
-		log.Fatal("failed to create " + oPath)
-	}
-	defer oFile.Close()
-
-	reader := bufio.NewReader(iFile)
-	writer := bufio.NewWriter(oFile)
-
+func Trim(r *bufio.Reader, w *bufio.Writer) {
 	for {
-		line, err := reader.ReadString('\n')
+		line, err := r.ReadString('\n')
 
 		if err != nil {
 			if err.Error() == "EOF" {
@@ -45,14 +25,18 @@ func Trim(iPath string) string {
 		}
 
 		if strings.HasPrefix(line, "BEGIN:VEVENT") {
-			e := parseEvent(reader)
+			e := parseEvent(r)
 			if filter.shouldInclude(e.fields) {
 				for _, l := range e.content {
-					_, err = writer.Write([]byte(l + "\n"))
+					for len(l) > 1 {
+						i := min(75, len(l))
+						_, err = w.Write([]byte(l[:i] + "\r\n"))
+						l = " " + l[i:]
+					}
 				}
 			}
 		} else {
-			_, err = writer.Write([]byte(strings.TrimRight(line, " \n\r\t") + "\n"))
+			_, err = w.Write([]byte(line))
 		}
 
 		if err != nil {
@@ -60,15 +44,14 @@ func Trim(iPath string) string {
 		}
 	}
 
-	writer.Flush()
-	return oPath
+	w.Flush()
 }
 
-func parseEvent(reader *bufio.Reader) event {
+func parseEvent(r *bufio.Reader) event {
 	content := []string{"BEGIN:VEVENT"}
 
 	for {
-		line, err := reader.ReadString('\n')
+		line, err := r.ReadString('\n')
 
 		if err != nil {
 			panic("unexpected error while reading event: " + err.Error())
@@ -95,4 +78,11 @@ func parseEvent(reader *bufio.Reader) event {
 	}
 
 	return event{content, fields}
+}
+
+func min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
 }
