@@ -1,9 +1,45 @@
 package main
 
 import (
-	"github.com/nicoevans/ical-trim/internal/proxy"
+	"encoding/json"
+	"io/ioutil"
+	"log"
+	"net/http"
+
+	"github.com/nicoevans/ical-trim/internal/parser"
 )
 
+type config struct {
+	Url string `json:"url"`
+}
+
 func main() {
-	proxy.Proxy("https://calendar.google.com/calendar/ical/restofsecreturl")
+	http.HandleFunc("/", handler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	resp, err := http.Get(url())
+	if err != nil {
+		panic(err)
+	}
+
+	w.Header().Set("Content-Type", "text/calendar")
+
+	parser.Trim(resp.Body, w)
+}
+
+func url() string {
+	content, err := ioutil.ReadFile("res/config.json")
+	if err != nil {
+		panic(err)
+	}
+
+	var c config
+	err = json.Unmarshal(content, &c)
+	if err != nil {
+		panic(err)
+	}
+
+	return c.Url
 }
