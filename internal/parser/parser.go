@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"io"
 	"strings"
 	"unicode"
 )
@@ -13,49 +14,50 @@ type event struct {
 	fields  map[string]string
 }
 
-func Trim(r *bufio.Reader, w *bufio.Writer) {
+func Trim(r io.Reader, w io.Writer) {
+	scanner := bufio.NewScanner(r)
 	for {
-		line, err := r.ReadString('\n')
-
-		if err != nil {
-			if err.Error() == "EOF" {
+		ok := scanner.Scan()
+		if !ok {
+			if scanner.Err() == nil {
 				break
 			}
-			panic("unexpected error while reading ical: " + err.Error())
+			panic("unexpected error while reading ical: " + scanner.Err().Error())
 		}
+		line := scanner.Text()
 
 		if strings.HasPrefix(line, "BEGIN:VEVENT") {
-			e := parseEvent(r)
+			e := parseEvent(scanner)
 			if filter.shouldInclude(e.fields) {
 				for _, l := range e.content {
 					for len(l) > 1 {
 						i := min(75, len(l))
-						_, err = w.Write([]byte(l[:i] + "\r\n"))
+						_, err := w.Write([]byte(l[:i] + "\r\n"))
+						if err != nil {
+							panic("unexpected error while reading ical: " + err.Error())
+						}
 						l = " " + l[i:]
 					}
 				}
 			}
 		} else {
-			_, err = w.Write([]byte(line))
-		}
-
-		if err != nil {
-			panic("unexpected error while reading ical: " + err.Error())
+			_, err := w.Write([]byte(line + "\r\n"))
+			if err != nil {
+				panic("unexpected error while reading ical: " + err.Error())
+			}
 		}
 	}
-
-	w.Flush()
 }
 
-func parseEvent(r *bufio.Reader) event {
+func parseEvent(scanner *bufio.Scanner) event {
 	content := []string{"BEGIN:VEVENT"}
 
 	for {
-		line, err := r.ReadString('\n')
-
-		if err != nil {
-			panic("unexpected error while reading event: " + err.Error())
+		ok := scanner.Scan()
+		if !ok {
+			panic("unexpected error while reading event: " + scanner.Err().Error())
 		}
+		line := scanner.Text()
 
 		if strings.HasPrefix(line, "END:VEVENT") {
 			content = append(content, "END:VEVENT")

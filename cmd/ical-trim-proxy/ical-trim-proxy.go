@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"github.com/nicoevans/ical-trim/internal/proxy"
+)
 
 func main() {
-	fmt.Println("abc")
+	proxy.Proxy("https://calendar.google.com/calendar/ical/restofsecreturl")
 }
