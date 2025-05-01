@@ -8,6 +8,7 @@ import (
 )
 
 var filter = Filter{"DTSTART", "greater_than", "20250426"}
+var filter2 = Filter{"DTSTART", "less_than", "20250626"}
 
 type event struct {
 	content []string
@@ -28,7 +29,7 @@ func Trim(r io.Reader, w io.Writer) {
 
 		if strings.HasPrefix(line, "BEGIN:VEVENT") {
 			e := parseEvent(scanner)
-			if filter.shouldInclude(e.fields) {
+			if filter.shouldInclude(e.fields) && filter2.shouldInclude(e.fields) {
 				for _, l := range e.content {
 					for len(l) > 1 {
 						i := min(75, len(l))
@@ -73,10 +74,20 @@ func parseEvent(scanner *bufio.Scanner) event {
 
 	fields := make(map[string]string)
 	for _, line := range content {
-		pair := strings.SplitN(line, ":", 2)
-		if len(pair) == 2 {
-			fields[pair[0]] = pair[1]
+		var field, val string
+		for i, ch := range line {
+			if ch == ':' || ch == ';' {
+				field = line[:i]
+				break
+			}
 		}
+		for i := len(line) - 1; i >= 0; i-- {
+			if line[i] == ':' || line[i] == ';' {
+				val = line[i+1:]
+				break
+			}
+		}
+		fields[field] = val
 	}
 
 	return event{content, fields}
